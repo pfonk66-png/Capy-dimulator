@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Cap Simulator 3 — Tudo Incluso</title>
+<style>
+body{margin:0;overflow:hidden;background:#111}
+canvas{display:block}
+#ui{
+  position:fixed;top:10px;left:10px;z-index:10;
+  color:#fff;font:14px Arial;background:#0008;padding:8px;border-radius:6px
+}
+#popup{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:#000c;color:#fff;font:26px Arial;text-align:center;z-index:20
+}
+#select{
+  position:fixed;right:10px;top:10px;z-index:10;
+  background:#0008;color:#fff;font:12px Arial;padding:8px;border-radius:6px;
+  max-height:90vh;overflow:auto
+}
+button{margin:2px;font-size:11px}
+</style>
+</head>
+<body>
+
+<div id="ui">
+Setas: mover | Espaço: pular | A/D: lateral (bug)<br>
+G: girar | 1–5: trocar DLC | C: trocar capivara
+</div>
+
+<div id="select"></div>
+<div id="popup"></div>
+<canvas id="c"></canvas>
+
+<script>
+/* ====== SETUP ====== */
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
+const popup=document.getElementById("popup");
+const select=document.getElementById("select");
+
+let keys={};
+addEventListener("keydown",e=>keys[e.key]=true);
+addEventListener("keyup",e=>keys[e.key]=false);
+
+/* ====== DADOS ====== */
+const baseCapys=[...Array(30)].map((_,i)=>"Capivara "+(i+1));
+const DLCs=[
+ {name:"Multiversal",capys:["Dimensional","Glitch","Pixel","HD","Fantasma","Invertida","Espelhada","LowPoly","Desalinhada","Piscante"]},
+ {name:"Profissões",capys:["Engenheira","Professor","Mecânica","Cozinheira","Policial","Estagiária","Vendedora","Faxineira","Médica","Pedreira"]},
+ {name:"Poderes",capys:["Gigante","Mini","Fogo","Gelo","Elétrica","Teleport","Imortal","Magnética","Salto","Caos"]},
+ {name:"Meme",capys:["Hello Moto","Confusa","Dramática","Dançarina","T-Pose","Óculos","Relax","Silenciosa","CaiSozinha","OlharCâmera"]},
+ {name:"Lendária",capys:["Ancestral","Lago","Celestial","Sombria","Dourada","Guardiã","FimMapa","Invisível","Suprema","Observa"]}
+];
+
+let dlcIndex=0,capIndex=0;
+let unlockedDLC=[true,false,false,false,false]; // DLC 0 começa ativa
+let bugCapyUnlocked=false;
+
+/* ====== JOGADOR ====== */
+let state="world"; // world | pipe | bug | dlc
+let player={x:200,y:c.height-120,vx:0,vy:0,spin:0};
+
+/* ====== FUNÇÕES ====== */
+function pop(t,ms=2000){
+ popup.innerHTML=t;popup.style.display="flex";
+ setTimeout(()=>popup.style.display="none",ms);
+}
+function resetSpawn(){
+ player.x=200;player.y=c.height-120;player.vx=player.vy=0;
+}
+function enterPipe(){state="pipe";player.vy=-35;}
+function tryBug(){
+ state="bug";
+ if(Math.random()<0.99){
+   bugCapyUnlocked=true;
+   pop("🏆 TROFÉU DE PLATINA<br>Capivara Esbugalhada");
+   setTimeout(()=>{resetSpawn();state="world";},2000);
+ }else{
+   unlockedDLC[dlcIndex]=true;
+   state="dlc";
+   pop("📦 DLC SECRETA DESBLOQUEADA<br>ESBUGALHO TOTAL");
+ }
+}
+
+/* ====== UI SELEÇÃO ====== */
+function updateSelect(){
+ let html="<b>DLC:</b><br>";
+ DLCs.forEach((d,i)=>{
+   html+=`<button ${!unlockedDLC[i]?"disabled":""} onclick="dlcIndex=${i}">${d.name}</button><br>`;
+ });
+ html+="<hr><b>Capivaras:</b><br>";
+ const list=(dlcIndex===0?baseCapys:DLCs[dlcIndex].capys);
+ list.forEach((n,i)=>{
+   html+=`<button onclick="capIndex=${i}">${n}</button><br>`;
+ });
+ select.innerHTML=html;
+}
+updateSelect();
+
+/* ====== LOOP ====== */
+function loop(){
+ ctx.clearRect(0,0,c.width,c.height);
+
+ /* CONTROLES */
+ if(state==="world"){
+   if(keys["ArrowLeft"])player.vx=-5;
+   if(keys["ArrowRight"])player.vx=5;
+   if(keys[" " ]&&player.y>=c.height-120)player.vy=-15;
+   if(keys["g"])player.spin+=0.3;
+   // cano
+   if(player.x>900&&player.x<980&&player.y>c.height-160)enterPipe();
+ }
+ if(state==="pipe"){
+   if((keys["a"]||keys["d"])&&player.y<c.height/2)tryBug();
+ }
+ if(state==="dlc"){
+   player.vx+=(Math.random()-0.5)*4;
+   player.vy+=(Math.random()-0.5)*4;
+ }
+
+ /* FÍSICA */
+ player.vy+=0.7;
+ player.x+=player.vx;
+ player.y+=player.vy;
+ if(player.y>c.height-120){player.y=c.height-120;player.vy=0;}
+ player.vx*=0.9;
+
+ /* MAPA */
+ ctx.fillStyle="#333";
+ ctx.fillRect(0,c.height-80,c.width,80);
+ ctx.fillStyle="green";
+ ctx.fillRect(900,c.height-140,80,60); // cano
+
+ /* CAPIVARA */
+ ctx.save();
+ ctx.translate(player.x,player.y);
+ ctx.rotate(player.spin);
+ ctx.fillStyle=bugCapyUnlocked?"#f0f":"#8b5a2b";
+ ctx.fillRect(-22,-18,44,30);
+ ctx.restore();
+
+ /* OLHOS */
+ ctx.fillStyle="#fff";
+ let eye=bugCapyUnlocked?9:4;
+ ctx.beginPath();
+ ctx.arc(player.x-10,player.y-22,eye,0,7);
+ ctx.arc(player.x+10,player.y-22,eye,0,7);
+ ctx.fill();
+
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
